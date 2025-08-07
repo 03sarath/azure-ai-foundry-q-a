@@ -1,0 +1,6 @@
+{
+    "PROJECT_CONNECTION_STRING": "your_azure_ai_project_connection_string_here",
+    "TENANT_ID": "your_azure_tenant_id_here",
+    "MODEL_DEPLOYMENT_NAME": "your_model_deployment_name_here",
+    "SERVERLESS_MODEL_NAME": "phi-4"
+}

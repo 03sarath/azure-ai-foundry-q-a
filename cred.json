@@ -1,6 +1,5 @@
 {
-    "PROJECT_CONNECTION_STRING": "your_azure_ai_project_connection_string_here",
-    "TENANT_ID": "your_azure_tenant_id_here",
-    "MODEL_DEPLOYMENT_NAME": "your_model_deployment_name_here",
-    "SERVERLESS_MODEL_NAME": "phi-4"
+    "ENDPOINT": "your_azure_ai_inference_endpoint_here",
+    "API_KEY": "your_azure_ai_inference_api_key_here",
+    "MODEL_DEPLOYMENT_NAME": "Phi-4"
 }

@@ -5,9 +5,9 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 import PyPDF2
 from io import BytesIO
-from azure.identity import DefaultAzureCredential
-from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import SystemMessage, UserMessage
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.core.credentials import AzureKeyCredential
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -16,8 +16,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Create uploads directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Global variables for Azure AI Project client
-project_client = None
+# Global variables for Azure AI Inference client
+client = None
 phi4_deployment = None
 
 def find_cred_json(start_path: str) -> str | None:
@@ -33,8 +33,8 @@ def find_cred_json(start_path: str) -> str | None:
     return None
 
 def initialize_azure_client():
-    """Initialize the Azure AI Project client"""
-    global project_client, phi4_deployment
+    """Initialize the Azure AI Inference client"""
+    global client, phi4_deployment
     
     try:
         # 1. Locate cred.json anywhere beneath the current directory
@@ -48,18 +48,20 @@ def initialize_azure_client():
             cfg = json.load(f)
         
         # 3. Extract configuration
-        phi4_deployment = cfg.get("SERVERLESS_MODEL_NAME", "phi-4")
-        print(f"Project Connection String: {cfg['PROJECT_CONNECTION_STRING']}")
-        print(f"Tenant ID:                  {cfg['TENANT_ID']}")
-        print(f"Model Deployment Name:      {cfg['MODEL_DEPLOYMENT_NAME']}")
-        print(f"Using Serverless Model:     {phi4_deployment}")
+        endpoint = cfg.get("ENDPOINT", "")
+        api_key = cfg.get("API_KEY", "")
+        phi4_deployment = cfg.get("MODEL_DEPLOYMENT_NAME", "Phi-4")
+        
+        print(f"Endpoint:                    {endpoint}")
+        print(f"Model Deployment Name:      {phi4_deployment}")
 
-        # 4. Create the AIProjectClient
-        project_client = AIProjectClient.from_connection_string(
-            credential=DefaultAzureCredential(),
-            conn_str=cfg['PROJECT_CONNECTION_STRING']
+        # 4. Create the ChatCompletionsClient
+        client = ChatCompletionsClient(
+            endpoint=endpoint,
+            credential=AzureKeyCredential(api_key),
+            api_version="2024-05-01-preview"
         )
-        print("✅ AIProjectClient created successfully!")
+        print("✅ ChatCompletionsClient created successfully!")
         return True
 
     except FileNotFoundError as e:
@@ -77,32 +79,31 @@ def initialize_azure_client():
 
 def chat_with_phi4_rag(user_question, retrieved_doc):
     """Simulate an RAG flow by appending retrieved context to the system prompt."""
-    global project_client, phi4_deployment
+    global client, phi4_deployment
     
-    if not project_client:
-        return "Error: Azure AI Project client not initialized"
+    if not client:
+        return "Error: Azure AI Inference client not initialized"
     
     system_prompt = (
-        "You are Phi-4, helpful fitness AI.\n"
-        "We have some context from the user's knowledge base: \n"
+        "You are Phi-4, a helpful fitness AI.\n"
+        "We have some context from the user's knowledge base:\n"
         f"{retrieved_doc}\n"
         "Please use this context to help your answer. If the context doesn't help, say so.\n"
     )
 
-    system_msg = SystemMessage(content=system_prompt)
-    user_msg = UserMessage(content=user_question)
-
     try:
-        with project_client.inference.get_chat_completions_client() as chat_client:
-            response = chat_client.complete(
-                model=phi4_deployment,
-                messages=[system_msg, user_msg],
-                temperature=0.3,
-                max_tokens=300,
-            )
+        response = client.complete(
+            messages=[
+                SystemMessage(content=system_prompt),
+                UserMessage(content=user_question)
+            ],
+            model=phi4_deployment,
+            temperature=0.3,
+            max_tokens=300
+        )
         return response.choices[0].message.content
     except Exception as e:
-        return f"Error communicating with Azure AI Project: {str(e)}"
+        return f"Error communicating with Azure AI Inference: {str(e)}"
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() == 'pdf'
@@ -156,7 +157,7 @@ def ask_question():
         if not pdf_text or not question:
             return jsonify({'error': 'Missing context or question'}), 400
         
-        # Use Azure AI Project for chat completion
+        # Use Azure AI Inference for chat completion
         answer = chat_with_phi4_rag(question, pdf_text)
         
         return jsonify({
@@ -168,10 +169,10 @@ def ask_question():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Initialize Azure AI Project client on startup
+    # Initialize Azure AI Inference client on startup
     if initialize_azure_client():
-        print("🚀 Flask app starting with Azure AI Project integration...")
+        print("🚀 Flask app starting with Azure AI Inference integration...")
         app.run(debug=True)
     else:
-        print("❌ Failed to initialize Azure AI Project client. Please check your cred.json file.")
+        print("❌ Failed to initialize Azure AI Inference client. Please check your cred.json file.")
         print("App will not start without proper Azure configuration.") 

@@ -2,7 +2,6 @@ import os
 import json
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
-from werkzeug.utils import secure_filename
 import PyPDF2
 from io import BytesIO
 from azure.ai.inference import ChatCompletionsClient
@@ -10,11 +9,7 @@ from azure.ai.inference.models import SystemMessage, UserMessage
 from azure.core.credentials import AzureKeyCredential
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-
-# Create uploads directory if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Global variables for Azure AI Inference client
 client = None
@@ -136,7 +131,6 @@ def upload_pdf():
             # Extract text from PDF
             pdf_text = extract_text_from_pdf(BytesIO(file.read()))
             
-            # Store the PDF text in the session
             return jsonify({
                 'success': True,
                 'text': pdf_text
@@ -175,4 +169,4 @@ if __name__ == '__main__':
         app.run(debug=True)
     else:
         print("❌ Failed to initialize Azure AI Inference client. Please check your cred.json file.")
-        print("App will not start without proper Azure configuration.") 
+        print("App will not start without proper Azure configuration.")
